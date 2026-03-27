@@ -30,7 +30,7 @@ Go to **Settings → Secrets and variables → Actions → Variables** and add:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `BMS_URL` | BookMyShow ticket page URL | `https://in.bookmyshow.com/movies/chennai/.../ET00123456` |
+| `BMS_URL` | BookMyShow ticket page URL | `https://in.bookmyshow.com/movies/chennai/movie-name/ET00123456` |
 | `BMS_DATES` | Dates to monitor (YYYYMMDD, comma-separated). Leave empty to auto-detect from URL. | `20260318,20260319` |
 | `BMS_THEATRE` | Filter by theatre name (substring match, comma-separated) | `PVR,IMAX` |
 | `BMS_TIME` | Filter by time period (comma-separated) | `evening,night` |
@@ -48,13 +48,13 @@ Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/).
 ```bash
 uv sync --frozen
 
-export BMS_URL="https://in.bookmyshow.com/movies/chennai/.../ET00123456"
+export BMS_URL="https://in.bookmyshow.com/movies/chennai/movie-name/ET00123456"
 export BMS_DATES="20260318,20260319"
 export BMS_THEATRE="PVR"
 export BMS_TIME="evening,night"
 export RESEND_API_KEY="re_..."
 export RESEND_TO_EMAIL="you@example.com"
-export RESEND_TO_EMAIL="python@resend.dev"
+export RESEND_FROM_EMAIL="python@resend.dev"
 
 uv run main.py
 ```

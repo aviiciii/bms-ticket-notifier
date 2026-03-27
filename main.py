@@ -20,8 +20,8 @@ import requests
 # CONFIGURATION — edit these or set via env vars
 # ──────────────────────────────────────────────────────────────────────
 CONFIG = {
-    "url": os.getenv(
-        "BMS_URL",
+    "url": (
+        os.getenv("BMS_URL") or
         "https://in.bookmyshow.com/movies/chennai/dhurandhar-the-revenge/buytickets/ET00478890"
     ),
     "dates": os.getenv("BMS_DATES", ""),          # comma-separated YYYYMMDD, empty = from URL
@@ -535,7 +535,10 @@ def main():
     url_date = parsed.get("date_code", "")
 
     if not event_code or not region_slug:
-        print("  ❌ Invalid BMS_URL. Could not extract event/region.")
+        url_display = CONFIG["url"] or "(empty)"
+        print(f"  ❌ Invalid BMS_URL. Could not extract event/region from: {url_display}")
+        print("     Make sure BMS_URL is set to a valid BookMyShow URL, e.g.:")
+        print("     https://in.bookmyshow.com/movies/chennai/movie-name/ET00123456")
         sys.exit(1)
 
     region_code, region_slug_r, lat, lon, geohash = resolve_region(
