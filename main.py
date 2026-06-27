@@ -473,7 +473,7 @@ def send_email(subject, changes, shows, movie_info):
     </h3>
     {shows_html}
     <p style="margin:24px 0 0 0;font-size:12px;color:#999;">
-        This is an automated alert from BMS Ticket Notifier.
+        This is an automated alert from BMS Ticket Notifier for The Odyssey.
     </p>
 </body>
 </html>"""
