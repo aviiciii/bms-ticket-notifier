@@ -641,6 +641,7 @@ def main():
         )
     else:
         print("  ✅ No changes since last check.")
+        send_telegram("✅ Telegram test from GitHub Actions")
 
     # Print current status
     print(f"\n  Current status ({len(filtered)} shows):")
