@@ -626,9 +626,11 @@ def main():
             print(f"     {c}")
 
         message = (
-            f"🚨 {movie_info['name']}\n\n"
-            f"{len(changes)} change(s) detected.\n\n"
-            + "\n".join(changes[:10])
+            f"🎬 {movie_info['name']}\n\n"
+            f"📍 Theatre: ALLU Cinemas: Kokapet\n"
+            f"🎟 Format: Dolby Cinema 3D\n\n"
+            f"🚨 {len(changes)} new update(s)\n\n"
+            + "\n".join(f"• {c}" for c in changes[:10])
         )
 
         send_telegram(message)
