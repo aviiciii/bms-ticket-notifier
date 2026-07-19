@@ -173,7 +173,8 @@ def fetch_bms(event_code, date_code, region_code, region_slug,
                             params=params, timeout=15)
         if resp.status_code == 200:
             return resp.json()
-        print(f"  HTTP {resp.status_code}")
+        print(f"HTTP {resp.status_code}")
+        print(resp.text)
     except requests.RequestException as e:
         print(f"  Request failed: {e}")
     return None
@@ -388,7 +389,37 @@ def detect_changes(old_state, new_state):
 def _cat_status_label(status):
     return AVAIL_STATUS_MAP.get(status, ("UNKNOWN", ""))[0]
 
+def send_telegram(message):
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
+    if not token or not chat_id:
+        print("  ⚠️ Telegram not configured.")
+        return
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+
+    r = requests.post(
+        url,
+        json={
+            "chat_id": chat_id,
+            "text": message,
+            "reply_markup": {
+                "inline_keyboard": [[
+                    {
+                        "text": "🎟 Open BookMyShow",
+                        "url": CONFIG["url"]
+                    }
+                ]]
+            }
+},
+        timeout=15,
+    )
+
+    if r.status_code == 200:
+        print("  ✅ Telegram sent")
+    else:
+        print(f"  ❌ Telegram failed: {r.text}")
 def send_email(subject, changes, shows, movie_info):
     api_key = RESEND_API_KEY.strip()
     to = RESEND_TO_EMAIL.strip()
@@ -601,12 +632,26 @@ def main():
         print(f"\n  ⚡ {len(changes)} change(s) detected:")
         for c in changes:
             print(f"     {c}")
+
+        message = (
+            f"🎬 {movie_info['name']}\n\n"
+            f"📍 Theatre: ALLU Cinemas: Kokapet\n"
+            f"🎟 Format: Dolby Cinema 3D\n\n"
+            f"🚨 {len(changes)} new update(s)\n\n"
+            + "\n".join(f"• {c}" for c in changes[:10])
+        )
+
+        send_telegram(message)
+
         send_email(
             f"BMS Alert: {movie_info['name']} - {len(changes)} change(s)",
-            changes, filtered, movie_info,
+            changes,
+            filtered,
+            movie_info,
         )
     else:
         print("  ✅ No changes since last check.")
+        send_telegram("✅ Telegram test from GitHub Actions")
 
     # Print current status
     print(f"\n  Current status ({len(filtered)} shows):")
