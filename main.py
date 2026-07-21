@@ -713,12 +713,31 @@ def main():
             changes, filtered, movies_found,
         )
 
-        new_show_changes = [c for c in changes if c.startswith("🆕 NEW:")]
-        if new_show_changes:
-            send_ntfy(
-                f"{len(new_show_changes)} new showtime(s) — {subject_movie}",
-                "\n".join(new_show_changes),
+        new_shows = {
+            k: v for k, v in new_state.get("shows", {}).items()
+            if k not in old_state.get("shows", {})
+        }
+        if new_shows:
+            groups = {}
+            for v in new_shows.values():
+                gkey = (v["event"], v["date"], v["venue"])
+                groups.setdefault(gkey, set()).add(v["time"])
+
+            lines = []
+            for (event, date, venue), times in sorted(groups.items()):
+                movie_name = movies_found.get(event, {}).get("name", "Movie")
+                count = len(times)
+                lines.append(
+                    f"{movie_name}: {count} new show"
+                    f"{'s' if count != 1 else ''} added for "
+                    f"{_fmt_date(date)} @ {venue}"
+                )
+
+            push_title = (
+                lines[0] if len(lines) == 1
+                else f"{len(lines)} new showtime update(s)"
             )
+            send_ntfy(push_title, "\n".join(lines))
     else:
         print("  ✅ No changes since last check.")
 
