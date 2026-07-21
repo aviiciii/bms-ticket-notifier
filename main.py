@@ -396,7 +396,22 @@ def _cat_status_label(status):
     return AVAIL_STATUS_MAP.get(status, ("UNKNOWN", ""))[0]
 
 
-def send_email(subject, changes, shows, movie_info):
+def _fmt_date(date_code):
+    """Convert YYYYMMDD -> 'Wed, 22 Jul' for display. Falls back to raw code."""
+    if not date_code or len(date_code) != 8:
+        return date_code or "—"
+    try:
+        d = datetime.strptime(date_code, "%Y%m%d")
+        return d.strftime("%a, %d %b")
+    except ValueError:
+        return date_code
+
+
+def send_email(subject, changes, shows, movies):
+    """
+    movies: dict of event_code -> {"name": ..., "language": ...}
+    shows: list of ShowInfo, each tagged with .event_code
+    """
     api_key = RESEND_API_KEY.strip()
     to = RESEND_TO_EMAIL.strip()
     frm = RESEND_FROM_EMAIL.strip() or "onboarding@resend.dev"
@@ -406,7 +421,8 @@ def send_email(subject, changes, shows, movie_info):
         return
 
     now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
-    movie_name = movie_info.get("name", "Movie")
+    movie_names = [m.get("name", "Movie") for m in movies.values()] or ["Movie"]
+    header_title = movie_names[0] if len(movie_names) == 1 else f"{len(movie_names)} movies"
 
     # Build changes HTML
     changes_html = ""
@@ -423,44 +439,65 @@ def send_email(subject, changes, shows, movie_info):
             {rows}
         </ul>"""
 
-    # Build shows section grouped by venue
-    venue_groups = {}
+    # Build shows section grouped by movie, then venue
+    movie_groups = {}
     for s in shows:
-        venue_groups.setdefault(s.venue_name, []).append(s)
+        movie_groups.setdefault(s.event_code, []).append(s)
 
     shows_html = ""
-    for vname, vshows in venue_groups.items():
-        show_rows = ""
-        for s in vshows:
-            cats = " | ".join(
-                f"{escape(c.name)} Rs.{escape(c.price)} ({_cat_status_label(c.status)})"
-                for c in s.categories
-            )
-            fmt = f" [{escape(s.screen_attr)}]" if s.screen_attr else ""
-            show_rows += (
-                f'<tr>'
-                f'<td style="padding:5px 8px;border-bottom:1px solid #ddd;'
-                f'font-size:13px;vertical-align:top;">'
-                f'{escape(s.time)}{fmt}</td>'
-                f'<td style="padding:5px 8px;border-bottom:1px solid #ddd;'
-                f'font-size:13px;vertical-align:top;">'
-                f'{cats}</td>'
-                f'</tr>'
-            )
+    for event_code, mshows in movie_groups.items():
+        mname = movies.get(event_code, {}).get("name", "Unknown Movie")
+
+        venue_groups = {}
+        for s in mshows:
+            venue_groups.setdefault(s.venue_name, []).append(s)
+
+        venues_html = ""
+        for vname, vshows in venue_groups.items():
+            vshows_sorted = sorted(vshows, key=lambda s: (s.date_code, s.time_code))
+            show_rows = ""
+            for s in vshows_sorted:
+                cats = " | ".join(
+                    f"{escape(c.name)} Rs.{escape(c.price)} ({_cat_status_label(c.status)})"
+                    for c in s.categories
+                )
+                fmt = f" [{escape(s.screen_attr)}]" if s.screen_attr else ""
+                show_rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 8px;border-bottom:1px solid #ddd;'
+                    f'font-size:13px;vertical-align:top;white-space:nowrap;">'
+                    f'{escape(_fmt_date(s.date_code))}</td>'
+                    f'<td style="padding:5px 8px;border-bottom:1px solid #ddd;'
+                    f'font-size:13px;vertical-align:top;">'
+                    f'{escape(s.time)}{fmt}</td>'
+                    f'<td style="padding:5px 8px;border-bottom:1px solid #ddd;'
+                    f'font-size:13px;vertical-align:top;">'
+                    f'{cats}</td>'
+                    f'</tr>'
+                )
+
+            venues_html += f"""
+            <p style="margin:14px 0 4px 0;font-size:14px;font-weight:bold;color:#333;">
+                {escape(vname)}
+            </p>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <tr style="background:#f5f5f5;">
+                    <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;
+                               font-weight:bold;">Date</th>
+                    <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;
+                               font-weight:bold;">Time</th>
+                    <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;
+                               font-weight:bold;">Categories</th>
+                </tr>
+                {show_rows}
+            </table>"""
 
         shows_html += f"""
-        <p style="margin:14px 0 4px 0;font-size:14px;font-weight:bold;color:#333;">
-            {escape(vname)}
-        </p>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <tr style="background:#f5f5f5;">
-                <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;
-                           font-weight:bold;">Time</th>
-                <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;
-                           font-weight:bold;">Categories</th>
-            </tr>
-            {show_rows}
-        </table>"""
+        <h3 style="margin:20px 0 8px 0;font-size:16px;font-weight:bold;color:#111;
+                   padding-bottom:6px;border-bottom:2px solid #333;">
+            🎬 {escape(mname)}
+        </h3>
+        {venues_html}"""
 
     html = f"""<!doctype html>
 <html>
@@ -468,7 +505,7 @@ def send_email(subject, changes, shows, movie_info):
 <body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;
              font-size:14px;color:#333;background:#fff;">
     <h2 style="margin:0 0 4px 0;font-size:18px;color:#111;">
-        BMS Alert: {escape(movie_name)}
+        BMS Alert: {escape(header_title)}
     </h2>
     <p style="margin:0 0 20px 0;font-size:13px;color:#666;">
         {escape(now_str)}
@@ -492,15 +529,24 @@ def send_email(subject, changes, shows, movie_info):
         plain_lines.extend(f"  - {c}" for c in changes)
         plain_lines.append("")
     plain_lines.append("Current Showtimes:")
-    for vname, vshows in venue_groups.items():
-        plain_lines.append(f"\n{vname}")
-        for s in vshows:
-            cats = " | ".join(
-                f"{c.name} Rs.{c.price} ({_cat_status_label(c.status)})"
-                for c in s.categories
-            )
-            fmt = f" [{s.screen_attr}]" if s.screen_attr else ""
-            plain_lines.append(f"  {s.time}{fmt} - {cats}")
+    for event_code, mshows in movie_groups.items():
+        mname = movies.get(event_code, {}).get("name", "Unknown Movie")
+        plain_lines.append(f"\n=== {mname} ===")
+
+        venue_groups = {}
+        for s in mshows:
+            venue_groups.setdefault(s.venue_name, []).append(s)
+
+        for vname, vshows in venue_groups.items():
+            plain_lines.append(f"\n{vname}")
+            vshows_sorted = sorted(vshows, key=lambda s: (s.date_code, s.time_code))
+            for s in vshows_sorted:
+                cats = " | ".join(
+                    f"{c.name} Rs.{c.price} ({_cat_status_label(c.status)})"
+                    for c in s.categories
+                )
+                fmt = f" [{s.screen_attr}]" if s.screen_attr else ""
+                plain_lines.append(f"  [{_fmt_date(s.date_code)}] {s.time}{fmt} - {cats}")
     plain_lines.extend(["", "This is an automated alert from BMS Ticket Notifier."])
     plain = "\n".join(plain_lines)
 
@@ -624,12 +670,12 @@ def main():
         print(f"\n  ⚡ {len(changes)} change(s) detected:")
         for c in changes:
             print(f"     {c}")
-        
-        # Use first movie name for email subject
-        first_movie = list(movies_found.values())[0]['name'] if movies_found else "Movie"
+
+        movie_names = [m["name"] for m in movies_found.values()] or ["Movie"]
+        subject_movie = movie_names[0] if len(movie_names) == 1 else f"{len(movie_names)} movies"
         send_email(
-            f"BMS Alert: {first_movie} - {len(changes)} change(s)",
-            changes, filtered, {"name": first_movie, "language": ""},
+            f"BMS Alert: {subject_movie} - {len(changes)} change(s)",
+            changes, filtered, movies_found,
         )
     else:
         print("  ✅ No changes since last check.")
