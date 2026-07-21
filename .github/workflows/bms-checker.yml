@@ -9,6 +9,7 @@ on:
 jobs:
   check-tickets:
     runs-on: ubuntu-latest
+    environment: dev
     timeout-minutes: 5
     permissions:
       contents: write
