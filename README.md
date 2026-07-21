@@ -23,6 +23,7 @@ Go to **Settings → Secrets and variables → Actions** and add:
 | `RESEND_API_KEY` | API key from [resend.com](https://resend.com) |
 | `RESEND_FROM_EMAIL` | Email address to send notifications (use your own domain email or anything@resend.dev) |
 | `RESEND_TO_EMAIL` | Email address to receive notifications |
+| `NTFY_TOPIC` | (Optional) [ntfy.sh](https://ntfy.sh) topic name for phone push notifications on new showtimes. Pick any hard-to-guess string, e.g. `bms-alerts-x7q2f` |
 
 ### 3. Set GitHub Variables
 
@@ -67,3 +68,13 @@ You'll receive an email when:
 - Seat availability changes (e.g. sold out → available)
 
 Emails show a summary of what changed and the current status of all monitored shows, grouped by theatre.
+
+### Phone push notifications (optional)
+
+If `NTFY_TOPIC` is set, you'll also get a push notification on your phone via [ntfy.sh](https://ntfy.sh) — but only when a **brand-new showtime** is detected (not for date-opened or availability-changed events, which are email-only).
+
+1. Pick a topic name (treat it like a password — anyone who knows it can read your notifications), e.g. `bms-alerts-x7q2f`
+2. Install the [ntfy app](https://ntfy.sh/#subscribe) (iOS/Android) or open `https://ntfy.sh/<your-topic>` in a browser, and subscribe to your topic
+3. Add `NTFY_TOPIC` as a GitHub secret with that value
+
+No account or signup needed. If you're self-hosting an ntfy server instead, also set `NTFY_SERVER` (defaults to `https://ntfy.sh`).

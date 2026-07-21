@@ -37,6 +37,9 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_TO_EMAIL = os.getenv("RESEND_TO_EMAIL", "")
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "aviiciii@resend.dev")
 
+NTFY_TOPIC = os.getenv("NTFY_TOPIC", "")
+NTFY_SERVER = os.getenv("NTFY_SERVER", "https://ntfy.sh")
+
 STATE_FILE = "bms_state.json"
 
 # ──────────────────────────────────────────────────────────────────────
@@ -575,6 +578,38 @@ def send_email(subject, changes, shows, movies):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# PUSH NOTIFICATION (ntfy.sh)
+# ──────────────────────────────────────────────────────────────────────
+def send_ntfy(title, message, url=None):
+    topic = NTFY_TOPIC.strip()
+    if not topic:
+        print("  ⚠️  Skipping push — NTFY_TOPIC not set.")
+        return
+
+    headers = {
+        "Title": title.encode("utf-8"),
+        "Priority": "high",
+        "Tags": "ticket",
+    }
+    if url:
+        headers["Click"] = url
+
+    try:
+        resp = requests.post(
+            f"{NTFY_SERVER.rstrip('/')}/{topic}",
+            data=message.encode("utf-8"),
+            headers=headers,
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            print(f"  ✅ Push sent to ntfy topic '{topic}'")
+        else:
+            print(f"  ❌ ntfy {resp.status_code}: {resp.text}")
+    except requests.RequestException as e:
+        print(f"  ❌ Push failed: {e}")
+
+
+# ──────────────────────────────────────────────────────────────────────
 # MAIN
 # ──────────────────────────────────────────────────────────────────────
 def main():
@@ -677,6 +712,13 @@ def main():
             f"BMS Alert: {subject_movie} - {len(changes)} change(s)",
             changes, filtered, movies_found,
         )
+
+        new_show_changes = [c for c in changes if c.startswith("🆕 NEW:")]
+        if new_show_changes:
+            send_ntfy(
+                f"{len(new_show_changes)} new showtime(s) — {subject_movie}",
+                "\n".join(new_show_changes),
+            )
     else:
         print("  ✅ No changes since last check.")
 
