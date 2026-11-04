@@ -15,6 +15,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 import requests
+from curl_cffi import requests as cffi_requests
 
 # ──────────────────────────────────────────────────────────────────────
 # CONFIGURATION — edit these or set via env vars
@@ -69,6 +70,7 @@ REGION_MAP = {
     "kolkata":    ("KOLK",   "kolkata",    "22.573", "88.364", "tun"),
     "pune":       ("PUNE",   "pune",       "18.520", "73.856", "te2"),
     "kochi":      ("KOCH",   "kochi",      "9.932",  "76.267", "t9z"),
+    "bhimavaram": ("BHIM", "bhimavaram", "16.5449", "81.5212", "tfc"),
 }
 
 
@@ -128,7 +130,7 @@ def resolve_region(slug):
 # BMS API
 # ──────────────────────────────────────────────────────────────────────
 API_URL = (
-    "https://in.bookmyshow.com/api/movies-data/v4/"
+    "https://in.bookmyshow.com/api/movies-data/v5/"
     "showtimes-by-event/primary-dynamic"
 )
 
@@ -151,6 +153,7 @@ def fetch_bms(event_code, date_code, region_code, region_slug,
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"macOS"',
         "x-app-code": "WEB",
+        "x-platform": "WEB", "x-platform-code": "WEB",
         "x-region-code": region_code,
         "x-region-slug": region_slug,
         "x-geohash": geohash,
@@ -160,7 +163,7 @@ def fetch_bms(event_code, date_code, region_code, region_slug,
         "x-lsid": "",
     }
     params = {
-        "eventCode": event_code,
+        "etCodes": event_code, "appCode": "WEB", "language": os.getenv("BMS_LANGUAGE", ""), "refEventCode": event_code,
         "dateCode": date_code or "",
         "isDesktop": "true",
         "regionCode": region_code,
@@ -169,12 +172,12 @@ def fetch_bms(event_code, date_code, region_code, region_slug,
         "lat": lat, "lon": lon,
     }
     try:
-        resp = requests.get(API_URL, headers=headers,
+        resp = cffi_requests.get(API_URL, impersonate="chrome", headers=headers,
                             params=params, timeout=15)
         if resp.status_code == 200:
             return resp.json()
         print(f"  HTTP {resp.status_code}")
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"  Request failed: {e}")
     return None
 
@@ -184,6 +187,7 @@ def fetch_bms(event_code, date_code, region_code, region_slug,
 # ──────────────────────────────────────────────────────────────────────
 def parse_movie_info(data):
     info = {"name": "Unknown Movie", "language": ""}
+    info["name"] = data.get("data", {}).get("header", {}).get("title", {}).get("text", info["name"])
     for w in data.get("data", {}).get("topStickyWidgets", []):
         if w.get("type") == "horizontal-text-list":
             for item in w.get("data", []):
@@ -231,7 +235,7 @@ def parse_shows(data):
                 vname = addl.get("venueName", "Unknown")
                 vcode = addl.get("venueCode", "")
 
-                for st in card.get("showtimes", []):
+                for st in [x for sec in card.get("showtimesSections", []) for x in sec.get("showtimes", [])] + card.get("showtimes", []):
                     sa = st.get("additionalData", {})
                     date_code = str(
                         sa.get("showDateCode", "")
@@ -251,7 +255,7 @@ def parse_shows(data):
                         screen_attr=(st.get("screenAttr", "")
                                      or sa.get("attributes", "")),
                     )
-                    for cat in sa.get("categories", []):
+                    for cat in (sa.get("categories") or [{"priceDesc": "Tickets", "curPrice": "0", "availStatus": sa.get("availStatus", "")}]):
                         ca = str(cat.get("availStatus", ""))
                         lbl, _ = AVAIL_STATUS_MAP.get(ca, ("UNKNOWN", ""))
                         show.categories.append(CatInfo(
@@ -516,7 +520,7 @@ def send_email(subject, changes, shows, movie_info):
         else:
             print(f"  ❌ Resend {resp.status_code}: {resp.text}")
             sys.exit(1)
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"  ❌ Email failed: {e}")
         sys.exit(1)
 
