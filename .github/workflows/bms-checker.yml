@@ -34,7 +34,7 @@ jobs:
           BMS_DATES: ${{ vars.BMS_DATES }}
           BMS_THEATRE: ${{ vars.BMS_THEATRE }}
           BMS_TIME: ${{ vars.BMS_TIME }}
-        run: uv run main.py
+        run: uv run --with curl_cffi main.py
 
       - name: Commit updated state
         run: |
